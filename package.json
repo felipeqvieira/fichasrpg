@@ -1,5 +1,6 @@
 {
   "name": "dnd-companion",
+  "homepage": "https://felipeqvieira.github.io/fichasrpg",
   "private": true,
   "version": "0.0.0",
   "type": "module",
