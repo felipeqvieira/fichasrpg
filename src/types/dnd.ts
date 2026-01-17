@@ -1,5 +1,16 @@
 export type Attribute = 'strength' | 'dexterity' | 'constitution' | 'intelligence' | 'wisdom' | 'charisma';
 
+export interface AttributeStat {
+  value: number;
+  saveProficiency: boolean; 
+}
+
+export interface Skill {
+  proficient: boolean;
+  attribute: Attribute;
+  expertise?: boolean;
+}
+
 export type SkillName = 
   | 'acrobatics' | 'animal_handling' | 'arcana' | 'athletics' 
   | 'deception' | 'history' | 'insight' | 'intimidation' 
@@ -7,47 +18,44 @@ export type SkillName =
   | 'performance' | 'persuasion' | 'religion' | 'sleight_of_hand' 
   | 'stealth' | 'survival';
 
-export type ProficiencyLevel = 'none' | 'proficient' | 'expert';
-
-// NOVO TIPO: Tipo de Ação
-export type ActionType = 'action' | 'bonus' | 'reaction' | 'other' | 'none';
-
-export interface AttributeStat {
-  value: number;
-  saveProficiency: boolean;
-}
-
-export interface Skill {
-  level: ProficiencyLevel;
-  attribute: Attribute;
-}
-
 export interface ItemEffect {
-  type: 'ac' | 'attribute' | 'save' | 'skill' | 'damage' | 'speed' | 'other';
+  type: 'ac' | 'attribute' | 'damage' | 'save' | 'skill' | 'speed' | 'other';
   target?: string;
   value: number;
 }
 
+export type ItemType = 'weapon' | 'armor' | 'consumable' | 'tool' | 'loot' | 'other';
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'very_rare' | 'legendary' | 'artifact';
+
 export interface Item {
   id: string;
   name: string;
+  type: ItemType;
+  rarity: Rarity;
   quantity: number;
   weight: number;
-  type: 'weapon' | 'armor' | 'consumable' | 'gear';
   equipped: boolean;
   description?: string;
+  effects?: ItemEffect[];
   damage?: string;
-  
-  // Adicione este campo:
-  range?: string; 
-
-  actionType?: ActionType; 
-  effects?: ItemEffect[]; 
+  range?: string;
+  properties?: string[];
+  actionType?: ActionType; // Para aparecer na aba de combate
 }
 
-export interface Sense {
+export type ActionType = 'action' | 'bonus' | 'reaction' | 'other' | 'none';
+
+export interface Feature {
+  id: string;
   name: string;
-  range: number;
+  source: string; // "Raça", "Classe", "Talento"
+  type: 'passive' | 'active';
+  maxUses: number;
+  currentUses: number;
+  recovery: 'short' | 'long' | 'none';
+  description: string;
+  effects?: ItemEffect[];
+  actionType?: ActionType;
 }
 
 export interface Spell {
@@ -61,6 +69,7 @@ export interface Spell {
   duration: string;
   description: string;
   prepared: boolean;
+  ritual: boolean;
 }
 
 export interface SpellSlot {
@@ -69,40 +78,25 @@ export interface SpellSlot {
   current: number;
 }
 
-export interface Feature {
-  id: string;
-  name: string;
-  source: string;
-  type: 'passive' | 'active';
-  maxUses: number;
-  currentUses: number;
-  recovery: 'short' | 'long' | 'none';
-  description: string;
-  
-  // Novo campo
-  actionType?: ActionType;
-  
-  effects?: ItemEffect[];
-}
+// --- NOVOS TIPOS (CRIATURAS E NOTAS) ---
 
 export interface CreatureAttack {
   name: string;
-  bonus: string; // ex: "+5"
-  damage: string; // ex: "1d8 + 3"
-  type: string; // ex: "Perfurante"
+  bonus: string;
+  damage: string;
+  type: string;
 }
 
 export interface Creature {
   id: string;
   name: string;
-  type: string; // ex: "Besta", "Constructo"
+  type: string;
   hp: {
     current: number;
     max: number;
   };
   ac: number;
   speed: string;
-  // Atributos simplificados (apenas modificadores ou valores, vamos usar valores para ser padrão)
   stats: {
     str: number;
     dex: number;
@@ -112,16 +106,18 @@ export interface Creature {
     cha: number;
   };
   attacks: CreatureAttack[];
-  notes: string; // Para traços especiais como "Faro Aguçado"
+  notes: string;
 }
 
 export interface Note {
   id: string;
-  title: string; // ex: "Sessão 1: A Taverna"
-  date: string;  // ex: "14/05/2024"
+  title: string;
+  date: string;
   content: string;
   tags?: string[];
 }
+
+// --- FICHA COMPLETA ATUALIZADA ---
 
 export interface CharacterSheet {
   id: string;
@@ -131,15 +127,11 @@ export interface CharacterSheet {
   level: number;
   background: string;
   alignment: string;
-  xp: number;
+  
+  xp: number; // Simplificado para número
 
   attributes: Record<Attribute, AttributeStat>;
   skills: Record<SkillName, Skill>;
-  proficiencyBonus: number;
-  
-  armorClass: number;
-  initiative: number;
-  speed: number;
 
   hp: {
     current: number;
@@ -148,32 +140,25 @@ export interface CharacterSheet {
   };
 
   hitDice: {
-    total: number;
     current: number;
+    total: number;
     face: number;
   };
 
-  deathSaves: {
-    successes: number;
-    failures: number;
-  };
+  armorClass: number;
+  initiative: number;
+  speed: number | string;
+  proficiencyBonus: number;
 
-  spellcastingAttribute: Attribute;
-  
-  armorProficiencies: string[];
-  weaponProficiencies: string[];
-  languages: { name: string; range?: number }[];
-  
-  resistances: string[];
-  vulnerabilities: string[];
-  immunities: string[];
+  // Listas de Strings
   activeConditions: string[];
+  resistances: string[];
+  immunities: string[];
+  vulnerabilities: string[];
 
-  senses: Sense[];
-  passivePerception: number;
-  passiveInvestigation: number;
-
-  currency: {
+  // Inventário e Recursos
+  inventory: Item[];
+  money: {         
     cp: number;
     sp: number;
     ep: number;
@@ -181,17 +166,13 @@ export interface CharacterSheet {
     pp: number;
   };
 
-  inventory: Item[];
+  features: Feature[];
+  
+  // Magias
   spells: Spell[];
   spellSlots: SpellSlot[];
-  features: Feature[];
-  notes: Note[];
-  
-  // Placeholders
-  creatures: Creature[];
-  
-  bio: string;
-  campaignNotes: string;
 
-  mode: 'view' | 'edit';
+  // Extras
+  creatures: Creature[];
+  notes: Note[];
 }
