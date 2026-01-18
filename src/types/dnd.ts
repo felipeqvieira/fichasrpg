@@ -2,13 +2,14 @@ export type Attribute = 'strength' | 'dexterity' | 'constitution' | 'intelligenc
 
 export interface AttributeStat {
   value: number;
-  saveProficiency: boolean; 
+  saveProficiency: boolean;
 }
 
+export type ProficiencyLevel = 'none' | 'proficient' | 'expert';
+
 export interface Skill {
-  proficient: boolean;
+  level: ProficiencyLevel;
   attribute: Attribute;
-  expertise?: boolean;
 }
 
 export type SkillName = 
@@ -24,7 +25,9 @@ export interface ItemEffect {
   value: number;
 }
 
-export type ItemType = 'weapon' | 'armor' | 'consumable' | 'tool' | 'loot' | 'other';
+// CORREÇÃO AQUI: Adicionado 'gear' na lista de tipos
+export type ItemType = 'weapon' | 'armor' | 'consumable' | 'tool' | 'loot' | 'gear' | 'other';
+
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'very_rare' | 'legendary' | 'artifact';
 
 export interface Item {
@@ -40,7 +43,7 @@ export interface Item {
   damage?: string;
   range?: string;
   properties?: string[];
-  actionType?: ActionType; // Para aparecer na aba de combate
+  actionType?: ActionType;
 }
 
 export type ActionType = 'action' | 'bonus' | 'reaction' | 'other' | 'none';
@@ -48,7 +51,7 @@ export type ActionType = 'action' | 'bonus' | 'reaction' | 'other' | 'none';
 export interface Feature {
   id: string;
   name: string;
-  source: string; // "Raça", "Classe", "Talento"
+  source: string;
   type: 'passive' | 'active';
   maxUses: number;
   currentUses: number;
@@ -70,6 +73,7 @@ export interface Spell {
   description: string;
   prepared: boolean;
   ritual: boolean;
+  effects?: ItemEffect[];
 }
 
 export interface SpellSlot {
@@ -77,8 +81,6 @@ export interface SpellSlot {
   total: number;
   current: number;
 }
-
-// --- NOVOS TIPOS (CRIATURAS E NOTAS) ---
 
 export interface CreatureAttack {
   name: string;
@@ -91,20 +93,10 @@ export interface Creature {
   id: string;
   name: string;
   type: string;
-  hp: {
-    current: number;
-    max: number;
-  };
+  hp: { current: number; max: number };
   ac: number;
   speed: string;
-  stats: {
-    str: number;
-    dex: number;
-    con: number;
-    int: number;
-    wis: number;
-    cha: number;
-  };
+  stats: { str: number; dex: number; con: number; int: number; wis: number; cha: number };
   attacks: CreatureAttack[];
   notes: string;
 }
@@ -117,7 +109,15 @@ export interface Note {
   tags?: string[];
 }
 
-// --- FICHA COMPLETA ATUALIZADA ---
+export interface Sense {
+  name: string;
+  range: number;
+}
+
+export interface Language {
+  name: string;
+  range?: number;
+}
 
 export interface CharacterSheet {
   id: string;
@@ -127,52 +127,36 @@ export interface CharacterSheet {
   level: number;
   background: string;
   alignment: string;
-  
-  xp: number; // Simplificado para número
+  xp: number;
 
   attributes: Record<Attribute, AttributeStat>;
   skills: Record<SkillName, Skill>;
 
-  hp: {
-    current: number;
-    max: number;
-    temp: number;
-  };
-
-  hitDice: {
-    current: number;
-    total: number;
-    face: number;
-  };
+  hp: { current: number; max: number; temp: number };
+  hitDice: { current: number; total: number; face: number };
 
   armorClass: number;
   initiative: number;
   speed: number | string;
   proficiencyBonus: number;
 
-  // Listas de Strings
   activeConditions: string[];
   resistances: string[];
   immunities: string[];
   vulnerabilities: string[];
+  
+  armorProficiencies: string[];
+  weaponProficiencies: string[];
+  languages: Language[];
+  senses: Sense[];
 
-  // Inventário e Recursos
   inventory: Item[];
-  money: {         
-    cp: number;
-    sp: number;
-    ep: number;
-    gp: number;
-    pp: number;
-  };
+  
+  currency: { cp: number; sp: number; ep: number; gp: number; pp: number };
 
   features: Feature[];
-  
-  // Magias
   spells: Spell[];
   spellSlots: SpellSlot[];
-
-  // Extras
   creatures: Creature[];
   notes: Note[];
 }

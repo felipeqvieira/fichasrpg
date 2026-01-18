@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, Swords, Brain, ChevronUp, ChevronDown, Plus, X, Eye, Ear, MessageCircle, Check } from 'lucide-react';
+import { 
+  Shield, Swords, Brain, ChevronUp, ChevronDown, Plus, X, 
+  Eye, Ear, MessageCircle, Check, Crown, Dna, FileText 
+} from 'lucide-react';
 import type { CharacterSheet, Attribute, SkillName, ProficiencyLevel } from '../../types/dnd';
 import { ARMOR_TYPES, WEAPON_TYPES, LANGUAGES, SENSES } from '../../data/lists';
 
 // --- HELPER COMPONENTS ---
 
-// Dropdown Customizado para substituir o <select> nativo e corrigir cores
+// Dropdown Customizado 
 interface DropdownProps {
-  options: { label?: string; items: string[] }[]; // Suporta grupos
+  options: { label?: string; items: string[] }[];
   value: string;
   onChange: (val: string) => void;
   placeholder?: string;
@@ -17,7 +20,6 @@ function CustomDropdown({ options, value, onChange, placeholder = "Selecionar...
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fecha ao clicar fora
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -98,6 +100,8 @@ const CAT_LABELS: Record<string, string> = {
   simple: 'Simples', martial: 'Marciais', firearms: 'Fogo'
 };
 
+const HIT_DICE_OPTIONS = [6, 8, 10, 12];
+
 interface StatusTabProps {
   character: CharacterSheet;
   isEditMode: boolean;
@@ -118,7 +122,6 @@ export function StatusTab({ character, isEditMode, onUpdate }: StatusTabProps) {
   );
 
   // --- PREPARAÇÃO DAS OPÇÕES PARA OS DROPDOWNS ---
-  
   const armorOptions = Object.entries(ARMOR_TYPES).map(([cat, items]) => ({
     label: CAT_LABELS[cat],
     items: [`Todas (${CAT_LABELS[cat]})`, ...items]
@@ -140,13 +143,27 @@ export function StatusTab({ character, isEditMode, onUpdate }: StatusTabProps) {
   ];
 
 
-  // --- HANDLERS ---
+  // --- HANDLERS GERAIS ---
   const handleAttributeChange = (attr: Attribute, val: number) => {
     onUpdate({
       attributes: {
         ...character.attributes,
         [attr]: { ...character.attributes[attr], value: Math.max(1, Math.min(30, val)) }
       }
+    });
+  };
+
+  // Handler para alternar Save Proficiency
+  const toggleSaveProficiency = (attr: Attribute) => {
+    if (!isEditMode) return;
+    onUpdate({
+        attributes: {
+            ...character.attributes,
+            [attr]: { 
+                ...character.attributes[attr], 
+                saveProficiency: !character.attributes[attr].saveProficiency 
+            }
+        }
     });
   };
 
@@ -201,220 +218,288 @@ export function StatusTab({ character, isEditMode, onUpdate }: StatusTabProps) {
   const passiveInvestigation = calculatePassive('investigation', 'intelligence');
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pb-20">
+    <div className="space-y-6 pb-20">
       
-      {/* === COLUNA ESQUERDA === */}
-      <div className="md:col-span-5 space-y-6">
-        
-        {/* Atributos */}
-        <div className="space-y-3">
-          {(Object.keys(character.attributes) as Attribute[]).map((attrKey) => {
-            const attr = character.attributes[attrKey];
-            const mod = getModifier(attr.value);
-            return (
-              <div key={attrKey} className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex items-center justify-between shadow-sm relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-800 opacity-60"></div>
-                <div className="pl-3 flex flex-col">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{ATTR_NAMES[attrKey]}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl font-bold text-slate-200">{formatMod(mod)}</span>
-                    {isEditMode ? (
-                      <div className="flex items-center bg-slate-900 rounded border border-slate-600">
-                        <button onClick={() => handleAttributeChange(attrKey, attr.value - 1)} className="px-1.5 hover:bg-slate-700 text-slate-400 hover:text-white"><ChevronDown size={14} /></button>
-                        <span className="w-6 text-center text-sm font-mono font-bold text-white">{attr.value}</span>
-                        <button onClick={() => handleAttributeChange(attrKey, attr.value + 1)} className="px-1.5 hover:bg-slate-700 text-slate-400 hover:text-white"><ChevronUp size={14} /></button>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400 font-mono bg-slate-900 px-1.5 rounded">{attr.value}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right pr-2">
-                  <div className={`text-[10px] px-2 py-1 rounded border uppercase font-bold tracking-wider ${
-                    attr.saveProficiency ? 'bg-red-900/20 border-red-800/40 text-red-400' : 'bg-slate-900 border-slate-700 text-slate-400'
-                  }`}>
-                    Save: {formatMod(mod + (attr.saveProficiency ? character.proficiencyBonus : 0))}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Sentidos Especiais */}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-sm">
-           <h3 className="text-xs font-bold text-slate-400 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2 uppercase tracking-widest">
-             <Ear size={14} /> Sentidos Especiais
-           </h3>
-           <div className="flex flex-wrap gap-2 mb-3">
-             {character.senses.length === 0 && <span className="text-xs text-slate-500 italic">Nenhum</span>}
-             {character.senses.map((sense, idx) => (
-               <div key={idx} className="flex items-center bg-slate-900 px-2 py-1 rounded border border-slate-700">
-                  <span className="text-xs text-slate-300 font-bold">{sense.name} <span className="font-mono text-slate-500 font-normal ml-1">{sense.range}ft</span></span>
-                  {isEditMode && <button onClick={() => removeItem('senses', idx)} className="text-slate-500 hover:text-red-400 ml-2"><X size={12} /></button>}
-               </div>
-             ))}
-           </div>
-           
-           {isEditMode && (
-             <div className="flex gap-2 items-center bg-slate-900 p-2 rounded border border-slate-600 relative">
-                <CustomDropdown 
-                  options={senseOptions}
-                  value={newSenseName}
-                  onChange={setNewSenseName}
-                  placeholder="Sentido..."
-                />
-                
-                <input type="number" className="w-10 bg-slate-800 text-center text-xs text-white rounded border border-slate-600 py-1.5 focus:border-red-500 outline-none" 
-                  value={newSenseRange} onChange={e => setNewSenseRange(parseInt(e.target.value) || 0)} 
-                />
-                <span className="text-[10px] text-slate-500">ft</span>
-                <button onClick={addSense} className="bg-slate-700 p-1.5 rounded hover:bg-slate-600 text-white"><Plus size={14}/></button>
-             </div>
-           )}
-        </div>
-
-        {/* Proficiências */}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-sm space-y-5">
-           
-           {/* Armaduras */}
-           <div>
-             <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2"><Shield size={12}/> Armaduras</h3>
-             <div className="flex flex-wrap gap-2 mb-2">
-               {character.armorProficiencies.length === 0 && !isEditMode && <span className="text-xs text-slate-600 italic">Nenhuma</span>}
-               {character.armorProficiencies.map((item, idx) => (
-                 <span key={idx} className="px-2 py-1 bg-slate-900 text-slate-300 text-xs rounded border border-slate-700 flex items-center gap-1">
-                   {item}
-                   {isEditMode && <button onClick={() => removeItem('armorProficiencies', idx)} className="text-slate-500 hover:text-red-400 ml-1"><X size={12} /></button>}
-                 </span>
-               ))}
-             </div>
-             {isEditMode && (
-               <div className="flex gap-2 items-center bg-slate-900 p-2 rounded border border-slate-600">
-                 <CustomDropdown 
-                   options={armorOptions} 
-                   value={newArmor} 
-                   onChange={setNewArmor} 
-                 />
-                 <button onClick={() => addProficiency('armorProficiencies', newArmor, setNewArmor)} className="bg-slate-700 p-1.5 rounded hover:bg-slate-600 text-white"><Plus size={14}/></button>
-               </div>
-             )}
-           </div>
-
-           {/* Armas */}
-           <div>
-             <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2"><Swords size={12}/> Armas</h3>
-             <div className="flex flex-wrap gap-2 mb-2">
-               {character.weaponProficiencies.length === 0 && !isEditMode && <span className="text-xs text-slate-600 italic">Nenhuma</span>}
-               {character.weaponProficiencies.map((item, idx) => (
-                 <span key={idx} className="px-2 py-1 bg-slate-900 text-slate-300 text-xs rounded border border-slate-700 flex items-center gap-1">
-                   {item}
-                   {isEditMode && <button onClick={() => removeItem('weaponProficiencies', idx)} className="text-slate-500 hover:text-red-400 ml-1"><X size={12} /></button>}
-                 </span>
-               ))}
-             </div>
-             {isEditMode && (
-               <div className="flex gap-2 items-center bg-slate-900 p-2 rounded border border-slate-600">
-                 <CustomDropdown 
-                   options={weaponOptions} 
-                   value={newWeapon} 
-                   onChange={setNewWeapon} 
-                 />
-                 <button onClick={() => addProficiency('weaponProficiencies', newWeapon, setNewWeapon)} className="bg-slate-700 p-1.5 rounded hover:bg-slate-600 text-white"><Plus size={14}/></button>
-               </div>
-             )}
-           </div>
-
-           {/* Idiomas */}
-           <div>
-             <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2"><MessageCircle size={12}/> Idiomas</h3>
-             <div className="flex flex-wrap gap-2 mb-2">
-               {character.languages.map((lang, idx) => (
-                 <span key={idx} className="px-2 py-1 bg-slate-900 text-slate-300 text-xs rounded border border-slate-700 flex items-center gap-1 font-serif italic">
-                   {lang.name} {lang.name === 'Telepatia' && `(${lang.range}ft)`}
-                   {isEditMode && <button onClick={() => removeItem('languages', idx)} className="text-slate-500 hover:text-red-400 ml-1"><X size={12} /></button>}
-                 </span>
-               ))}
-             </div>
-             {isEditMode && (
-               <div className="flex gap-2 items-center bg-slate-900 p-2 rounded border border-slate-600">
-                  <CustomDropdown 
-                    options={langOptions} 
-                    value={newLangName} 
-                    onChange={setNewLangName}
-                    placeholder="Idioma..."
-                  />
-                  {newLangName === 'Telepatia' && (
-                    <input type="number" className="w-10 bg-slate-800 text-center text-xs text-white rounded border border-slate-600 py-1.5 focus:border-red-500 outline-none" 
-                      value={newLangRange} onChange={e => setNewLangRange(parseInt(e.target.value) || 0)} 
+      {/* === 0. ÁREA DE EDIÇÃO DO CABEÇALHO (Só aparece em Edit Mode) === */}
+      {isEditMode && (
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
+            <h3 className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-widest flex items-center gap-2">
+                <FileText size={14}/> Editar Dados Básicos
+            </h3>
+            <div className="space-y-3">
+                {/* Nome */}
+                <div>
+                    <label className="text-[10px] text-slate-500 font-bold uppercase">Nome do Personagem</label>
+                    <input 
+                        className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white font-bold focus:border-red-500 outline-none"
+                        value={character.name}
+                        onChange={(e) => onUpdate({ name: e.target.value })}
                     />
-                  )}
-                  <button onClick={addLang} className="bg-slate-700 p-1.5 rounded hover:bg-slate-600 text-white"><Plus size={14}/></button>
+                </div>
+                
+                {/* Grid: Classe, Raça, Nível */}
+                <div className="grid grid-cols-3 gap-3">
+                    <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase flex items-center gap-1"><Crown size={10}/> Classe</label>
+                        <input className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-xs" value={character.class} onChange={(e) => onUpdate({ class: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase flex items-center gap-1"><Dna size={10}/> Raça</label>
+                        <input className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-xs" value={character.race} onChange={(e) => onUpdate({ race: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase">Nível</label>
+                        <input type="number" className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-xs text-center" value={character.level} onChange={(e) => onUpdate({ level: parseInt(e.target.value)||1 })} />
+                    </div>
+                </div>
+
+                {/* Dado de Vida */}
+                <div>
+                    <label className="text-[10px] text-slate-500 font-bold uppercase">Dado de Vida (Hit Die)</label>
+                    <div className="flex gap-2 mt-1">
+                    {HIT_DICE_OPTIONS.map(face => (
+                        <button
+                        key={face}
+                        onClick={() => onUpdate({ hitDice: { ...character.hitDice, face } })}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded border transition-colors ${
+                            character.hitDice.face === face 
+                            ? 'bg-red-600 border-red-500 text-white' 
+                            : 'bg-slate-900 border-slate-700 text-slate-500 hover:text-slate-300'
+                        }`}
+                        >
+                        d{face}
+                        </button>
+                    ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* === ÁREA PRINCIPAL (2 Colunas) === */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        
+        {/* === COLUNA ESQUERDA === */}
+        <div className="md:col-span-5 space-y-6">
+          
+          {/* Atributos */}
+          <div className="space-y-3">
+            {(Object.keys(character.attributes) as Attribute[]).map((attrKey) => {
+              const attr = character.attributes[attrKey];
+              const mod = getModifier(attr.value);
+              return (
+                <div key={attrKey} className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex items-center justify-between shadow-sm relative overflow-hidden">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-800 opacity-60"></div>
+                  <div className="pl-3 flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{ATTR_NAMES[attrKey]}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl font-bold text-slate-200">{formatMod(mod)}</span>
+                      {isEditMode ? (
+                        <div className="flex items-center bg-slate-900 rounded border border-slate-600">
+                          <button onClick={() => handleAttributeChange(attrKey, attr.value - 1)} className="px-1.5 hover:bg-slate-700 text-slate-400 hover:text-white"><ChevronDown size={14} /></button>
+                          <span className="w-6 text-center text-sm font-mono font-bold text-white">{attr.value}</span>
+                          <button onClick={() => handleAttributeChange(attrKey, attr.value + 1)} className="px-1.5 hover:bg-slate-700 text-slate-400 hover:text-white"><ChevronUp size={14} /></button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-mono bg-slate-900 px-1.5 rounded">{attr.value}</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Botão de Save (Interativo no Edit Mode) */}
+                  <div className="text-right pr-2">
+                    <button 
+                        disabled={!isEditMode}
+                        onClick={() => toggleSaveProficiency(attrKey)}
+                        className={`text-[10px] px-2 py-1 rounded border uppercase font-bold tracking-wider transition-colors ${
+                        attr.saveProficiency 
+                            ? 'bg-red-900/20 border-red-800/40 text-red-400' 
+                            : 'bg-slate-900 border-slate-700 text-slate-400'
+                        } ${isEditMode ? 'hover:border-red-500 cursor-pointer' : 'cursor-default'}`}
+                    >
+                      Save: {formatMod(mod + (attr.saveProficiency ? character.proficiencyBonus : 0))}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Sentidos Especiais */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-sm">
+             <h3 className="text-xs font-bold text-slate-400 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2 uppercase tracking-widest">
+               <Ear size={14} /> Sentidos Especiais
+             </h3>
+             <div className="flex flex-wrap gap-2 mb-3">
+               {character.senses.length === 0 && <span className="text-xs text-slate-500 italic">Nenhum</span>}
+               {character.senses.map((sense, idx) => (
+                 <div key={idx} className="flex items-center bg-slate-900 px-2 py-1 rounded border border-slate-700">
+                    <span className="text-xs text-slate-300 font-bold">{sense.name} <span className="font-mono text-slate-500 font-normal ml-1">{sense.range}ft</span></span>
+                    {isEditMode && <button onClick={() => removeItem('senses', idx)} className="text-slate-500 hover:text-red-400 ml-2"><X size={12} /></button>}
+                 </div>
+               ))}
+             </div>
+             
+             {isEditMode && (
+               <div className="flex gap-2 items-center bg-slate-900 p-2 rounded border border-slate-600 relative">
+                  <CustomDropdown 
+                    options={senseOptions}
+                    value={newSenseName}
+                    onChange={setNewSenseName}
+                    placeholder="Sentido..."
+                  />
+                  
+                  <input type="number" className="w-10 bg-slate-800 text-center text-xs text-white rounded border border-slate-600 py-1.5 focus:border-red-500 outline-none" 
+                    value={newSenseRange} onChange={e => setNewSenseRange(parseInt(e.target.value) || 0)} 
+                  />
+                  <span className="text-[10px] text-slate-500">ft</span>
+                  <button onClick={addSense} className="bg-slate-700 p-1.5 rounded hover:bg-slate-600 text-white"><Plus size={14}/></button>
                </div>
              )}
-           </div>
+          </div>
 
+          {/* Proficiências */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-sm space-y-5">
+             
+             {/* Armaduras */}
+             <div>
+               <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2"><Shield size={12}/> Armaduras</h3>
+               <div className="flex flex-wrap gap-2 mb-2">
+                 {character.armorProficiencies.length === 0 && !isEditMode && <span className="text-xs text-slate-600 italic">Nenhuma</span>}
+                 {character.armorProficiencies.map((item, idx) => (
+                   <span key={idx} className="px-2 py-1 bg-slate-900 text-slate-300 text-xs rounded border border-slate-700 flex items-center gap-1">
+                     {item}
+                     {isEditMode && <button onClick={() => removeItem('armorProficiencies', idx)} className="text-slate-500 hover:text-red-400 ml-1"><X size={12} /></button>}
+                   </span>
+                 ))}
+               </div>
+               {isEditMode && (
+                 <div className="flex gap-2 items-center bg-slate-900 p-2 rounded border border-slate-600">
+                   <CustomDropdown 
+                     options={armorOptions} 
+                     value={newArmor} 
+                     onChange={setNewArmor} 
+                   />
+                   <button onClick={() => addProficiency('armorProficiencies', newArmor, setNewArmor)} className="bg-slate-700 p-1.5 rounded hover:bg-slate-600 text-white"><Plus size={14}/></button>
+                 </div>
+               )}
+             </div>
+
+             {/* Armas */}
+             <div>
+               <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2"><Swords size={12}/> Armas</h3>
+               <div className="flex flex-wrap gap-2 mb-2">
+                 {character.weaponProficiencies.length === 0 && !isEditMode && <span className="text-xs text-slate-600 italic">Nenhuma</span>}
+                 {character.weaponProficiencies.map((item, idx) => (
+                   <span key={idx} className="px-2 py-1 bg-slate-900 text-slate-300 text-xs rounded border border-slate-700 flex items-center gap-1">
+                     {item}
+                     {isEditMode && <button onClick={() => removeItem('weaponProficiencies', idx)} className="text-slate-500 hover:text-red-400 ml-1"><X size={12} /></button>}
+                   </span>
+                 ))}
+               </div>
+               {isEditMode && (
+                 <div className="flex gap-2 items-center bg-slate-900 p-2 rounded border border-slate-600">
+                   <CustomDropdown 
+                     options={weaponOptions} 
+                     value={newWeapon} 
+                     onChange={setNewWeapon} 
+                   />
+                   <button onClick={() => addProficiency('weaponProficiencies', newWeapon, setNewWeapon)} className="bg-slate-700 p-1.5 rounded hover:bg-slate-600 text-white"><Plus size={14}/></button>
+                 </div>
+               )}
+             </div>
+
+             {/* Idiomas */}
+             <div>
+               <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2"><MessageCircle size={12}/> Idiomas</h3>
+               <div className="flex flex-wrap gap-2 mb-2">
+                 {character.languages.map((lang, idx) => (
+                   <span key={idx} className="px-2 py-1 bg-slate-900 text-slate-300 text-xs rounded border border-slate-700 flex items-center gap-1 font-serif italic">
+                     {lang.name} {lang.name === 'Telepatia' && `(${lang.range}ft)`}
+                     {isEditMode && <button onClick={() => removeItem('languages', idx)} className="text-slate-500 hover:text-red-400 ml-1"><X size={12} /></button>}
+                   </span>
+                 ))}
+               </div>
+               {isEditMode && (
+                 <div className="flex gap-2 items-center bg-slate-900 p-2 rounded border border-slate-600">
+                    <CustomDropdown 
+                      options={langOptions} 
+                      value={newLangName} 
+                      onChange={setNewLangName}
+                      placeholder="Idioma..."
+                    />
+                    {newLangName === 'Telepatia' && (
+                      <input type="number" className="w-10 bg-slate-800 text-center text-xs text-white rounded border border-slate-600 py-1.5 focus:border-red-500 outline-none" 
+                        value={newLangRange} onChange={e => setNewLangRange(parseInt(e.target.value) || 0)} 
+                      />
+                    )}
+                    <button onClick={addLang} className="bg-slate-700 p-1.5 rounded hover:bg-slate-600 text-white"><Plus size={14}/></button>
+                 </div>
+               )}
+             </div>
+
+          </div>
         </div>
-      </div>
 
-      {/* === COLUNA DIREITA (7/12) === */}
-      <div className="md:col-span-7 h-full flex flex-col">
-        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-sm overflow-hidden flex flex-col h-full">
-           <div className="bg-slate-900 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
-             <h3 className="text-sm font-bold text-slate-400 flex items-center gap-2 uppercase tracking-widest">
-               <Brain size={16} /> Perícias
-             </h3>
-             <span className="text-xs text-slate-400 font-mono">Proficiência: +{character.proficiencyBonus}</span>
-           </div>
-           
-           <div className="divide-y divide-slate-700/50 flex-1 overflow-y-auto no-scrollbar">
-             {sortedSkills.map((skillKey) => {
-               const skill = character.skills[skillKey];
-               const attrVal = character.attributes[skill.attribute].value;
-               let total = getModifier(attrVal);
-               if (skill.level === 'proficient') total += character.proficiencyBonus;
-               if (skill.level === 'expert') total += character.proficiencyBonus * 2;
+        {/* === COLUNA DIREITA (7/12) === */}
+        <div className="md:col-span-7 h-full flex flex-col">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-sm overflow-hidden flex flex-col h-full">
+             <div className="bg-slate-900 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
+               <h3 className="text-sm font-bold text-slate-400 flex items-center gap-2 uppercase tracking-widest">
+                 <Brain size={16} /> Perícias
+               </h3>
+               <span className="text-xs text-slate-400 font-mono">Proficiência: +{character.proficiencyBonus}</span>
+             </div>
+             
+             <div className="divide-y divide-slate-700/50 flex-1 overflow-y-auto no-scrollbar">
+               {sortedSkills.map((skillKey) => {
+                 const skill = character.skills[skillKey];
+                 const attrVal = character.attributes[skill.attribute].value;
+                 let total = getModifier(attrVal);
+                 if (skill.level === 'proficient') total += character.proficiencyBonus;
+                 if (skill.level === 'expert') total += character.proficiencyBonus * 2;
 
-               return (
-                 <div key={skillKey} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-700/30 transition-colors group">
-                   <div className="flex items-center gap-3">
-                     <button 
-                       onClick={() => handleSkillToggle(skillKey)}
-                       disabled={!isEditMode}
-                       className={`w-3 h-3 rounded-full border transition-all ${
-                          skill.level === 'none' ? 'border-slate-500 bg-transparent' : 
-                          skill.level === 'expert' ? 'bg-red-500 border-red-500 shadow-[0_0_8px_rgba(220,38,38,0.4)]' : 
-                          'bg-slate-400 border-slate-400'
-                       } ${isEditMode ? 'cursor-pointer hover:scale-125' : 'cursor-default'}`}
-                     />
-                     <span className={`text-sm ${skill.level !== 'none' ? 'font-bold text-slate-200' : 'text-slate-400'}`}>
-                       {SKILL_NAMES[skillKey]}
-                       <span className="ml-1.5 text-[10px] text-slate-500 font-normal uppercase tracking-wider">
-                         {skill.attribute.substring(0,3)}
+                 return (
+                   <div key={skillKey} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-700/30 transition-colors group">
+                     <div className="flex items-center gap-3">
+                       <button 
+                         onClick={() => handleSkillToggle(skillKey)}
+                         disabled={!isEditMode}
+                         className={`w-3 h-3 rounded-full border transition-all ${
+                           skill.level === 'none' ? 'border-slate-500 bg-transparent' : 
+                           skill.level === 'expert' ? 'bg-red-500 border-red-500 shadow-[0_0_8px_rgba(220,38,38,0.4)]' : 
+                           'bg-slate-400 border-slate-400'
+                         } ${isEditMode ? 'cursor-pointer hover:scale-125' : 'cursor-default'}`}
+                       />
+                       <span className={`text-sm ${skill.level !== 'none' ? 'font-bold text-slate-200' : 'text-slate-400'}`}>
+                         {SKILL_NAMES[skillKey]}
+                         <span className="ml-1.5 text-[10px] text-slate-500 font-normal uppercase tracking-wider">
+                           {skill.attribute.substring(0,3)}
+                         </span>
                        </span>
+                     </div>
+                     <span className={`font-mono font-bold text-sm ${total >= 0 ? 'text-slate-300' : 'text-red-400'}`}>
+                       {formatMod(total)}
                      </span>
                    </div>
-                   <span className={`font-mono font-bold text-sm ${total >= 0 ? 'text-slate-300' : 'text-red-400'}`}>
-                     {formatMod(total)}
-                   </span>
-                 </div>
-               );
-             })}
-           </div>
+                 );
+               })}
+             </div>
 
-           <div className="bg-slate-900 border-t border-slate-700 p-2 flex justify-around items-center">
-              <div className="flex items-center gap-2" title="Percepção Passiva">
-                 <Eye size={16} className="text-slate-500" />
-                 <span className="text-[10px] font-bold text-slate-500 uppercase">Percepção:</span>
-                 <span className="text-sm font-bold text-slate-300">{passivePerception}</span>
-              </div>
-              <div className="w-px h-4 bg-slate-700"></div>
-              <div className="flex items-center gap-2" title="Investigação Passiva">
-                 <Brain size={16} className="text-slate-500" />
-                 <span className="text-[10px] font-bold text-slate-500 uppercase">Investigação:</span>
-                 <span className="text-sm font-bold text-slate-300">{passiveInvestigation}</span>
-              </div>
-           </div>
+             <div className="bg-slate-900 border-t border-slate-700 p-2 flex justify-around items-center">
+                <div className="flex items-center gap-2" title="Percepção Passiva">
+                   <Eye size={16} className="text-slate-500" />
+                   <span className="text-[10px] font-bold text-slate-500 uppercase">Percepção:</span>
+                   <span className="text-sm font-bold text-slate-300">{passivePerception}</span>
+                </div>
+                <div className="w-px h-4 bg-slate-700"></div>
+                <div className="flex items-center gap-2" title="Investigação Passiva">
+                   <Brain size={16} className="text-slate-500" />
+                   <span className="text-[10px] font-bold text-slate-500 uppercase">Investigação:</span>
+                   <span className="text-sm font-bold text-slate-300">{passiveInvestigation}</span>
+                </div>
+             </div>
+          </div>
         </div>
       </div>
     </div>

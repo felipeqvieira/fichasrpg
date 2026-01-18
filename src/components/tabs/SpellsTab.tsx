@@ -1,16 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Sparkles, Plus, Trash2, Edit2, Flame, 
   Target, Clock, Scroll, BookOpen, ChevronDown, 
-  PlayCircle, RefreshCw, X, Shield
+  PlayCircle, RefreshCw, X, Shield 
 } from 'lucide-react';
-import type { CharacterSheet, Spell, Attribute, SpellSlot } from '../../types/dnd';
+import type { CharacterSheet, Spell, Attribute, SpellSlot, ItemEffect, SkillName } from '../../types/dnd';
 
-// Escolas de Magia
-const SCHOOLS = [
-  'Abjuração', 'Adivinhação', 'Conjuração', 'Encantamento', 
-  'Evocação', 'Ilusão', 'Necromancia', 'Transmutação'
+// --- LISTAS DE REFERÊNCIA (Para o Gerador de Efeitos) ---
+const SCHOOLS = ['Abjuração', 'Adivinhação', 'Conjuração', 'Encantamento', 'Evocação', 'Ilusão', 'Necromancia', 'Transmutação'];
+
+const EFFECT_TYPES = [
+  { value: 'ac', label: 'CA' },
+  { value: 'attribute', label: 'Atributo' },
+  { value: 'skill', label: 'Perícia' },
+  { value: 'speed', label: 'Deslocamento' },
+  { value: 'damage', label: 'Dano' },
+  { value: 'other', label: 'Outro' },
 ];
+
+const ATTRIBUTES_LIST = [
+  { value: 'strength', label: 'Força' }, { value: 'dexterity', label: 'Destreza' },
+  { value: 'constitution', label: 'Constituição' }, { value: 'intelligence', label: 'Inteligência' },
+  { value: 'wisdom', label: 'Sabedoria' }, { value: 'charisma', label: 'Carisma' },
+];
+
+const SKILLS_LIST: {value: SkillName, label: string}[] = [
+    { value: 'acrobatics', label: 'Acrobacia' }, { value: 'arcana', label: 'Arcanismo' },
+    { value: 'athletics', label: 'Atletismo' }, { value: 'stealth', label: 'Furtividade' },
+    { value: 'perception', label: 'Percepção' }, { value: 'insight', label: 'Intuição' },
+   
+];
+
+const optionClass = "bg-slate-800 text-slate-200";
 
 interface SpellsTabProps {
   character: CharacterSheet;
@@ -28,12 +49,22 @@ export function SpellsTab({ character, onUpdate, isEditMode }: SpellsTabProps) {
   const [formData, setFormData] = useState<Spell>({
     id: '', name: '', level: 0, school: 'Evocação', 
     castingTime: '1 ação', range: '18m', components: 'V, S', 
-    duration: 'Instantânea', description: '', prepared: true
+    duration: 'Instantânea', description: '', prepared: true, 
+    ritual: false,
+    effects: []
   });
 
+  // --- ESTADOS DOS EFEITOS (NOVO) ---
+  const [newEffectType, setNewEffectType] = useState<ItemEffect['type']>('damage');
+  const [newEffectTarget, setNewEffectTarget] = useState('');
+  const [newEffectValue, setNewEffectValue] = useState(0);
+
+  // Limpa alvo ao mudar tipo
+  useEffect(() => { setNewEffectTarget(''); }, [newEffectType]);
+
   // --- CÁLCULOS MÁGICOS ---
-  const spellAttrKey = character.spellcastingAttribute || 'intelligence';
-  const attrVal = character.attributes[spellAttrKey].value;
+  const spellAttrKey = (character as any).spellcastingAttribute || 'intelligence'; // Fallback seguro
+  const attrVal = character.attributes[spellAttrKey as Attribute].value;
   const mod = Math.floor((attrVal - 10) / 2);
   const saveDC = 8 + character.proficiencyBonus + mod;
   const attackBonus = character.proficiencyBonus + mod;
@@ -42,7 +73,7 @@ export function SpellsTab({ character, onUpdate, isEditMode }: SpellsTabProps) {
   // --- HANDLERS ---
 
   const handleAttributeChange = (attr: Attribute) => {
-    onUpdate({ spellcastingAttribute: attr });
+    onUpdate({ spellcastingAttribute: attr } as any);
   };
 
   const handleSlotChange = (level: number, change: number) => {
@@ -65,7 +96,6 @@ export function SpellsTab({ character, onUpdate, isEditMode }: SpellsTabProps) {
 
   const handleCast = (spell: Spell) => {
     if (spell.level === 0) return; 
-    
     const slot = character.spellSlots.find(s => s.level === spell.level);
     if (slot && slot.current > 0) {
       if(confirm(`Conjurar "${spell.name}" gastando 1 slot de nível ${spell.level}?`)) {
@@ -102,7 +132,7 @@ export function SpellsTab({ character, onUpdate, isEditMode }: SpellsTabProps) {
   };
 
   const startEdit = (spell: Spell) => {
-    setFormData(spell);
+    setFormData({ ...spell, effects: spell.effects || [] });
     setEditingId(spell.id);
     setIsAdding(true);
   };
@@ -113,8 +143,40 @@ export function SpellsTab({ character, onUpdate, isEditMode }: SpellsTabProps) {
     setFormData({
       id: '', name: '', level: 0, school: 'Evocação', 
       castingTime: '1 ação', range: '18m', components: 'V, S', 
-      duration: 'Instantânea', description: '', prepared: true
+      duration: 'Instantânea', description: '', prepared: true, ritual: false, effects: []
     });
+    setNewEffectType('damage');
+    setNewEffectTarget('');
+    setNewEffectValue(0);
+  };
+
+  // --- HANDLERS DE EFEITOS (NOVO) ---
+  const handleAddEffect = () => {
+    const effect: ItemEffect = { type: newEffectType, target: newEffectTarget, value: newEffectValue };
+    setFormData({ ...formData, effects: [...(formData.effects || []), effect] });
+    setNewEffectValue(0);
+    setNewEffectTarget('');
+  };
+  const handleRemoveEffect = (idx: number) => {
+    setFormData({ ...formData, effects: formData.effects?.filter((_, i) => i !== idx) });
+  };
+
+  // Renderizador de Input de Alvo (Igual FeaturesTab)
+  const renderTargetInput = () => {
+    if (newEffectType === 'ac' || newEffectType === 'speed') return <input disabled className="w-full bg-slate-800/50 text-xs border border-slate-700 rounded p-1.5 text-slate-500 cursor-not-allowed" value={newEffectType === 'ac' ? "CA" : "Deslocamento"} />;
+    let options: {value: string, label: string}[] = [];
+    if (newEffectType === 'attribute') options = ATTRIBUTES_LIST;
+    if (newEffectType === 'skill') options = SKILLS_LIST;
+
+    if (options.length > 0) {
+        return (
+            <select className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white" value={newEffectTarget} onChange={e => setNewEffectTarget(e.target.value)}>
+                <option value="" className={optionClass}>Selecionar...</option>
+                {options.map(o => <option key={o.value} value={o.value} className={optionClass}>{o.label}</option>)}
+            </select>
+        );
+    }
+    return <input className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white" placeholder="Detalhe..." value={newEffectTarget} onChange={e => setNewEffectTarget(e.target.value)} />;
   };
 
   // Agrupar magias por nível
@@ -181,7 +243,6 @@ export function SpellsTab({ character, onUpdate, isEditMode }: SpellsTabProps) {
           onDelete={handleDelete}
           onAdd={() => { resetForm(); setFormData(p => ({...p, level: 0})); setIsAdding(true); }}
           isEditMode={isEditMode}
-          // Truques não precisam de slot handlers
           onSlotUse={() => {}}
           onMaxSlotChange={() => {}}
         />
@@ -258,6 +319,29 @@ export function SpellsTab({ character, onUpdate, isEditMode }: SpellsTabProps) {
                   <input className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm" value={formData.components} onChange={e => setFormData({...formData, components: e.target.value})} />
                </div>
 
+               {/* GERADOR DE EFEITOS (INSERIDO AQUI) */}
+               <div className="bg-slate-950 p-3 rounded border border-slate-700 mt-2">
+                 <label className="text-[10px] uppercase font-bold text-purple-400 mb-2 block flex items-center gap-1"><Sparkles size={12} /> Efeitos / Dados (Opcional)</label>
+                 
+                 {/* Lista de efeitos existentes */}
+                 <div className="flex flex-wrap gap-2 mb-3">
+                    {formData.effects?.map((eff, i) => (
+                        <div key={i} className="bg-slate-800 px-2 py-1 rounded text-xs flex items-center gap-2 border border-slate-700">
+                            <span className="text-slate-300">{eff.type === 'damage' ? 'DANO' : eff.type.toUpperCase()} {eff.target && `(${eff.target})`}: <strong className="text-white ml-1">{eff.value >= 0 ? `+${eff.value}` : eff.value}</strong></span>
+                            <button onClick={() => handleRemoveEffect(i)} className="text-red-400 hover:text-red-200"><X size={12}/></button>
+                        </div>
+                    ))}
+                 </div>
+
+                 {/* Inputs */}
+                 <div className="grid grid-cols-12 gap-2 items-end">
+                   <div className="col-span-5"><select className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white" value={newEffectType} onChange={e => setNewEffectType(e.target.value as any)}>{EFFECT_TYPES.map(t => <option key={t.value} value={t.value} className={optionClass}>{t.label}</option>)}</select></div>
+                   <div className="col-span-4">{renderTargetInput()}</div>
+                   <div className="col-span-2"><input type="number" className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white text-center" placeholder="Val" value={newEffectValue} onChange={e => setNewEffectValue(parseInt(e.target.value) || 0)} /></div>
+                   <div className="col-span-1"><button onClick={handleAddEffect} className="w-full bg-blue-900 hover:bg-blue-800 text-white p-1.5 rounded flex justify-center"><Plus size={14}/></button></div>
+                 </div>
+               </div>
+
                <div>
                   <label className="text-[10px] text-slate-500 uppercase font-bold">Descrição</label>
                   <textarea className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm h-32 resize-none" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
@@ -272,7 +356,7 @@ export function SpellsTab({ character, onUpdate, isEditMode }: SpellsTabProps) {
   );
 }
 
-// --- SUB-COMPONENTE: SEÇÃO DE NÍVEL  ---
+// --- SUB-COMPONENTE: SEÇÃO DE NÍVEL ---
 interface SpellSectionProps {
   level: number;
   spells: Spell[];
@@ -289,26 +373,19 @@ interface SpellSectionProps {
 function SpellLevelSection({ level, spells, slots, onCast, onEdit, onDelete, onAdd, isEditMode, onSlotUse, onMaxSlotChange }: SpellSectionProps) {
   const isCantrip = level === 0;
 
-  // Lógica de Visibilidade:
-  // - Truques: Sempre mostra.
-  // - Níveis: Mostra se tiver Slots OU se tiver Magias OU se estiver editando.
   if (!isCantrip && slots.total === 0 && spells.length === 0 && !isEditMode) return null;
 
   return (
     <div className={`bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden transition-all ${isEditMode && slots.total === 0 && spells.length === 0 ? 'opacity-60 hover:opacity-100' : ''}`}>
       
       <div className="bg-slate-800 px-3 py-2 flex flex-wrap justify-between items-center gap-3 border-b border-slate-700">
-        
-        {/* Esquerda: Título */}
         <h3 className="font-bold text-indigo-300 uppercase tracking-widest text-sm flex items-center gap-2 min-w-[100px]">
           {isCantrip ? <Sparkles size={16}/> : <Flame size={16}/>}
           {isCantrip ? 'Truques' : `Nível ${level}`}
         </h3>
 
-        {/* Centro: Tracker de Slots (Só para Níveis > 0) */}
         {!isCantrip && (
           <div className="flex items-center gap-3 bg-slate-900/50 rounded px-3 py-1 border border-slate-700/50">
-            {/* Controles de Quantidade Total (Só Edit Mode) */}
             {isEditMode && (
               <div className="flex items-center gap-1 mr-2 pr-2 border-r border-slate-700">
                 <button onClick={() => onMaxSlotChange(level, Math.max(0, slots.total - 1))} className="w-5 h-5 flex items-center justify-center text-red-400 hover:bg-slate-700 rounded">-</button>
@@ -322,7 +399,6 @@ function SpellLevelSection({ level, spells, slots, onCast, onEdit, onDelete, onA
               {Array.from({ length: slots.total }).map((_, i) => (
                 <button
                   key={i}
-                  // No modo leitura: clica para gastar/recuperar. No edit: desativado.
                   onClick={() => !isEditMode && onSlotUse(i < slots.current ? -1 : 1)}
                   className={`w-3.5 h-3.5 rounded-full border transition-all ${
                     i < slots.current 
@@ -336,15 +412,13 @@ function SpellLevelSection({ level, spells, slots, onCast, onEdit, onDelete, onA
           </div>
         )}
 
-        {/* Direita: Botão Add (Só Edit Mode) */}
         {isEditMode ? (
           <button onClick={onAdd} className="text-slate-400 hover:text-white bg-slate-700 p-1.5 rounded transition-colors ml-auto">
             <Plus size={16} />
           </button>
-        ) : <div className="ml-auto w-4"></div> /* Espaçador para alinhar se não tiver botão */ }
+        ) : <div className="ml-auto w-4"></div>}
       </div>
 
-      {/* LISTA DE MAGIAS */}
       <div className="divide-y divide-slate-700/50">
         {spells.length === 0 && (
           <div className="p-4 text-center text-slate-600 text-xs italic">
@@ -385,7 +459,21 @@ function SpellLevelSection({ level, spells, slots, onCast, onEdit, onDelete, onA
                   <span className="flex items-center gap-1"><Scroll size={12}/> {spell.components}</span>
                   <span className="flex items-center gap-1"><Clock size={12}/> {spell.duration}</span>
                 </div>
+                
                 <p className="whitespace-pre-line leading-relaxed text-slate-300 opacity-90">{spell.description}</p>
+                
+                {/* RENDERIZAÇÃO DOS EFEITOS (NOVO) */}
+                {spell.effects && spell.effects.length > 0 && (
+                 <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-slate-700/30">
+                    {spell.effects.map((eff, i) => (
+                    <span key={i} className="px-1.5 py-0.5 bg-indigo-900/20 border border-indigo-500/30 rounded text-[10px] text-indigo-300 font-bold flex items-center gap-1">
+                        <Sparkles size={8} className="fill-current" />
+                        {eff.type === 'damage' ? 'DANO' : eff.type.toUpperCase()} {eff.target && `(${eff.target})`}: <strong className="text-white ml-1">{eff.value >= 0 ? `+${eff.value}` : eff.value}</strong>
+                    </span>
+                    ))}
+                 </div>
+                )}
+
                 {isEditMode && (
                   <div className="mt-4 flex justify-end gap-3 pt-3 border-t border-slate-700/30">
                     <button onClick={() => onEdit(spell)} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"><Edit2 size={12}/> Editar</button>

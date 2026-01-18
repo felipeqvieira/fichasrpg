@@ -1,19 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Zap, Star, Plus, Trash2, Edit2, Bookmark, 
-  X, Sparkles, Clock, Scroll, User, Crown, Shield 
+  X, Sparkles, Clock, Scroll, User, Shield 
 } from 'lucide-react';
-import type { CharacterSheet, Feature, ItemEffect, ActionType } from '../../types/dnd';
+import type { CharacterSheet, Feature, ItemEffect, ActionType, Attribute, SkillName } from '../../types/dnd';
 
-// Tipos de Efeitos
+// --- LISTAS DE REFERÊNCIA ---
 const EFFECT_TYPES = [
   { value: 'ac', label: 'Classe de Armadura (CA)' },
-  { value: 'attribute', label: 'Atributo' },
-  { value: 'save', label: 'Teste de Resistência' },
-  { value: 'skill', label: 'Perícia' },
-  { value: 'speed', label: 'Movimento' },
+  { value: 'attribute', label: 'Atributo (For/Des...)' },
+  { value: 'skill', label: 'Perícia (Acrobacia...)' },
+  { value: 'speed', label: 'Deslocamento' },
   { value: 'damage', label: 'Bônus de Dano' },
-  { value: 'other', label: 'Outro' },
+  { value: 'other', label: 'Outro / Especial' },
+];
+
+const ATTRIBUTES_LIST: {value: Attribute, label: string}[] = [
+  { value: 'strength', label: 'Força' },
+  { value: 'dexterity', label: 'Destreza' },
+  { value: 'constitution', label: 'Constituição' },
+  { value: 'intelligence', label: 'Inteligência' },
+  { value: 'wisdom', label: 'Sabedoria' },
+  { value: 'charisma', label: 'Carisma' },
+];
+
+const SKILLS_LIST: {value: SkillName, label: string}[] = [
+    { value: 'acrobatics', label: 'Acrobacia' },
+    { value: 'animal_handling', label: 'Lidar c/ Animais' },
+    { value: 'arcana', label: 'Arcanismo' },
+    { value: 'athletics', label: 'Atletismo' },
+    { value: 'deception', label: 'Enganação' },
+    { value: 'history', label: 'História' },
+    { value: 'insight', label: 'Intuição' },
+    { value: 'intimidation', label: 'Intimidação' },
+    { value: 'investigation', label: 'Investigação' },
+    { value: 'medicine', label: 'Medicina' },
+    { value: 'nature', label: 'Natureza' },
+    { value: 'perception', label: 'Percepção' },
+    { value: 'performance', label: 'Atuação' },
+    { value: 'persuasion', label: 'Persuasão' },
+    { value: 'religion', label: 'Religião' },
+    { value: 'sleight_of_hand', label: 'Prestidigitação' },
+    { value: 'stealth', label: 'Furtividade' },
+    { value: 'survival', label: 'Sobrevivência' },
 ];
 
 const ACTION_TYPES: Record<string, string> = {
@@ -25,8 +54,6 @@ const ACTION_TYPES: Record<string, string> = {
 };
 
 const CATEGORIES = ['Classe', 'Raça', 'Talento', 'Antecedente', 'Outro'];
-
-const MOVEMENT_LIST = ['Caminhada', 'Voo', 'Escalada', 'Natação', 'Escavação'];
 const optionClass = "bg-slate-800 text-slate-200";
 
 interface FeaturesTabProps {
@@ -39,17 +66,22 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Estado do Formulário
+  // Form States
   const [formData, setFormData] = useState<Feature>({
     id: '', name: '', source: 'Classe', type: 'passive', 
     maxUses: 0, currentUses: 0, recovery: 'long', description: '', effects: [],
     actionType: 'none'
   });
 
-  // Estados de Efeito
+  // Effect States
   const [newEffectType, setNewEffectType] = useState<ItemEffect['type']>('attribute');
   const [newEffectTarget, setNewEffectTarget] = useState('');
   const [newEffectValue, setNewEffectValue] = useState(0);
+
+  // Limpa o alvo quando muda o tipo para evitar dados sujos
+  useEffect(() => {
+    setNewEffectTarget('');
+  }, [newEffectType]);
 
   // --- HANDLERS ---
   const handleUseFeature = (feat: Feature) => {
@@ -94,9 +126,14 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
   };
 
   const handleAddEffect = () => {
+    // Validação simples
+    if ((newEffectType === 'attribute' || newEffectType === 'skill') && !newEffectTarget) {
+        return; // Exige seleção
+    }
     const effect: ItemEffect = { type: newEffectType, target: newEffectTarget, value: newEffectValue };
     setFormData({ ...formData, effects: [...(formData.effects || []), effect] });
     setNewEffectValue(0);
+    setNewEffectTarget('');
   };
 
   const handleRemoveEffect = (idx: number) => {
@@ -118,18 +155,38 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
     setNewEffectValue(0);
   };
 
-  // --- AGRUPAMENTO POR CATEGORIA ---
-  const groupedFeatures: Record<string, Feature[]> = {
-    'Classe': [], 'Raça': [], 'Talento': [], 'Antecedente': [], 'Outro': []
+  // --- RENDERIZADOR DO TARGET ---
+  const renderTargetInput = () => {
+    if (newEffectType === 'ac') {
+        return <input disabled className="w-full bg-slate-800/50 text-xs border border-slate-700 rounded p-1.5 text-slate-500 cursor-not-allowed" value="Armadura" />;
+    }
+    if (newEffectType === 'speed') {
+        return <input disabled className="w-full bg-slate-800/50 text-xs border border-slate-700 rounded p-1.5 text-slate-500 cursor-not-allowed" value="Deslocamento" />;
+    }
+
+    // Se for Atributo ou Perícia, mostra Select
+    let options: {value: string, label: string}[] = [];
+    if (newEffectType === 'attribute') options = ATTRIBUTES_LIST;
+    if (newEffectType === 'skill') options = SKILLS_LIST;
+
+    if (options.length > 0) {
+        return (
+            <select className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white" value={newEffectTarget} onChange={e => setNewEffectTarget(e.target.value)}>
+                <option value="" className={optionClass}>Selecionar...</option>
+                {options.map(o => <option key={o.value} value={o.value} className={optionClass}>{o.label}</option>)}
+            </select>
+        );
+    }
+
+    // Default (Texto Livre para Damage ou Other)
+    return <input className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white" placeholder={newEffectType === 'damage' ? "Tipo (ex: Fogo)" : "Detalhe..."} value={newEffectTarget} onChange={e => setNewEffectTarget(e.target.value)} />;
   };
 
+  // --- AGRUPAMENTO ---
+  const groupedFeatures: Record<string, Feature[]> = { 'Classe': [], 'Raça': [], 'Talento': [], 'Antecedente': [], 'Outro': [] };
   character.features.forEach(feat => {
-    // Tenta encontrar a categoria exata, senão joga em Outro
-    if (groupedFeatures[feat.source]) {
-      groupedFeatures[feat.source].push(feat);
-    } else {
-      groupedFeatures['Outro'].push(feat);
-    }
+    if (groupedFeatures[feat.source]) groupedFeatures[feat.source].push(feat);
+    else groupedFeatures['Outro'].push(feat);
   });
 
   const getCategoryIcon = (cat: string) => {
@@ -151,7 +208,7 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
         </button>
       )}
 
-      {/* LISTA AGRUPADA */}
+      {/* LISTA */}
       <div className="space-y-6">
         {CATEGORIES.map(category => {
           const features = groupedFeatures[category];
@@ -163,11 +220,9 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2 border-b border-slate-800 pb-1">
                 {getCategoryIcon(category)} {category === 'Classe' ? 'Habilidades de Classe' : category === 'Raça' ? 'Traços Raciais' : category === 'Talento' ? 'Talentos' : category}
               </h3>
-              
               <div className="space-y-3">
                 {features.map(feat => (
                   <div key={feat.id} className="bg-slate-800 border border-slate-700 rounded-lg p-3 hover:bg-slate-800/80 transition-colors group relative">
-                    
                     <div className="flex justify-between items-start mb-1">
                        <div className="flex items-center gap-2">
                          <h4 className="font-bold text-slate-200 text-sm">{feat.name}</h4>
@@ -177,7 +232,6 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
                            </span>
                          )}
                        </div>
-
                        {isEditMode && (
                           <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute right-2 top-2">
                             <button onClick={() => startEdit(feat)} className="bg-slate-900 p-1.5 rounded text-slate-400 hover:text-blue-400 hover:bg-slate-700 transition-colors"><Edit2 size={14}/></button>
@@ -186,6 +240,7 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
                         )}
                     </div>
 
+                    {/* Tags e Descrição */}
                     <div className="mb-2 flex flex-wrap gap-2">
                       {feat.type === 'active' && feat.actionType && feat.actionType !== 'none' && (
                         <span className="text-[9px] text-slate-400 uppercase border border-slate-700 px-1.5 py-0.5 rounded flex items-center gap-1">
@@ -193,46 +248,33 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
                         </span>
                       )}
                     </div>
-
                     <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-line mb-3">{feat.description}</p>
                     
-                    {/* VISUALIZAÇÃO DE USOS (MELHORADA) */}
+                    {/* Usos */}
                     {feat.type === 'active' && feat.maxUses > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-3 pt-2 border-t border-slate-700/50">
                         {Array.from({ length: feat.maxUses }).map((_, i) => (
                            <button
                              key={i}
-                             // Só permite clicar se tiver usos sobrando OU se estiver no modo edição (para recuperar)
-                             onClick={() => { 
-                               if (i < feat.currentUses) handleUseFeature(feat); 
-                               else if (isEditMode) handleRecoverFeature(feat); 
-                             }}
+                             onClick={() => { if (i < feat.currentUses) handleUseFeature(feat); else if (isEditMode) handleRecoverFeature(feat); }}
                              disabled={!isEditMode && i >= feat.currentUses}
-                             className={`
-                               w-6 h-6 rounded-md border flex items-center justify-center transition-all shadow-sm
-                               ${i < feat.currentUses 
-                                 ? 'bg-yellow-500 border-yellow-600 hover:bg-yellow-400' 
-                                 : 'bg-slate-900 border-slate-700 opacity-50'
-                               }
-                               ${(isEditMode || i < feat.currentUses) ? 'cursor-pointer' : 'cursor-not-allowed'}
-                             `}
+                             className={`w-6 h-6 rounded-md border flex items-center justify-center transition-all shadow-sm ${i < feat.currentUses ? 'bg-yellow-500 border-yellow-600 hover:bg-yellow-400' : 'bg-slate-900 border-slate-700 opacity-50'} ${(isEditMode || i < feat.currentUses) ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                            >
                              {i < feat.currentUses && <Zap size={12} className="text-black fill-black" />}
                            </button>
                         ))}
-                        <span className="text-[9px] text-slate-500 self-center ml-2 uppercase font-bold">
-                           Recupera: {feat.recovery === 'short' ? 'Curto' : 'Longo'}
-                        </span>
                       </div>
                     )}
 
-                    {/* Efeitos Passivos */}
+                    {/* Lista de Efeitos Visuais */}
                     {feat.effects && feat.effects.length > 0 && (
                        <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-slate-700/50">
                          {feat.effects.map((eff, i) => (
                            <span key={i} className="px-1.5 py-0.5 bg-slate-900/50 border border-slate-700 rounded text-[10px] text-slate-300 font-bold flex items-center gap-1">
-                             <Sparkles size={8} />
-                             {eff.type === 'speed' ? 'DESL.' : eff.type.toUpperCase()} {eff.target && `(${eff.target})`}: +{eff.value}
+                             <Sparkles size={8} className="text-indigo-400" />
+                             <span className="uppercase">{EFFECT_TYPES.find(t => t.value === eff.type)?.label.split(' ')[0]}</span> 
+                             {eff.target && <span className="text-slate-400">({SKILLS_LIST.find(s=>s.value===eff.target)?.label || ATTRIBUTES_LIST.find(a=>a.value===eff.target)?.label || eff.target})</span>}: 
+                             <strong className={`${eff.value > 0 ? 'text-green-400' : 'text-red-400'} ml-1`}>{eff.value > 0 ? `+${eff.value}` : eff.value}</strong>
                            </span>
                          ))}
                        </div>
@@ -243,13 +285,9 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
             </div>
           );
         })}
-
-        {character.features.length === 0 && !isEditMode && (
-          <div className="text-center py-10 text-slate-600 italic text-sm">Nenhuma habilidade registrada.</div>
-        )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL EDITAR/CRIAR */}
       {isAdding && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 sm:p-0">
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={resetForm}></div>
@@ -257,12 +295,11 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
              <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-3"><h3 className="text-lg font-bold text-white flex items-center gap-2"><Bookmark size={18}/> {editingId ? 'Editar' : 'Nova Habilidade'}</h3><button onClick={resetForm} className="text-slate-500 hover:text-white"><X size={20}/></button></div>
 
              <div className="space-y-4">
-               <div><label className="text-[10px] text-slate-500 uppercase font-bold">Nome</label><input className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm focus:border-indigo-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} autoFocus placeholder="Ex: Fúria, Visão no Escuro" /></div>
+               <div><label className="text-[10px] text-slate-500 uppercase font-bold">Nome</label><input className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm focus:border-indigo-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} autoFocus placeholder="Ex: Fúria" /></div>
                
                <div className="flex gap-3">
                  <div className="flex-1">
-                   <label className="text-[10px] text-slate-500 uppercase font-bold">Origem (Categoria)</label>
-                   {/* SELECT AO INVÉS DE INPUT DE TEXTO */}
+                   <label className="text-[10px] text-slate-500 uppercase font-bold">Origem</label>
                    <select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm focus:border-indigo-500 outline-none" value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})}>
                      {CATEGORIES.map(cat => <option key={cat} value={cat} className={optionClass}>{cat}</option>)}
                    </select>
@@ -270,26 +307,23 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
                  <div className="w-1/3">
                    <label className="text-[10px] text-slate-500 uppercase font-bold">Tipo</label>
                    <select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm focus:border-indigo-500 outline-none" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})}>
-                     <option value="passive" className={optionClass}>Passiva (Fixo)</option>
-                     <option value="active" className={optionClass}>Ativa (Usos)</option>
+                     <option value="passive" className={optionClass}>Passiva</option>
+                     <option value="active" className={optionClass}>Ativa</option>
                    </select>
                  </div>
                </div>
 
-               {/* SEÇÃO DE AÇÃO (SÓ SE FOR ATIVA) */}
                {formData.type === 'active' && (
                  <div className="bg-yellow-900/10 border border-yellow-900/30 p-2 rounded">
                    <label className="text-[10px] uppercase font-bold text-yellow-500 mb-1 block flex items-center gap-1"><Clock size={12}/> Tipo de Ação</label>
                    <select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-yellow-500 outline-none" value={formData.actionType || 'none'} onChange={e => setFormData({...formData, actionType: e.target.value as ActionType})}>
                      {Object.entries(ACTION_TYPES).map(([key, label]) => (<option key={key} value={key} className={optionClass}>{label}</option>))}
                    </select>
-                   <p className="text-[9px] text-yellow-500/70 mt-1 italic">Define onde aparecerá na aba de Combate.</p>
                  </div>
                )}
 
-               {/* Config de Usos (Só Ativa) */}
                {formData.type === 'active' && (
-                 <div className="bg-slate-800/50 p-3 rounded border border-slate-700 animate-in fade-in">
+                 <div className="bg-slate-800/50 p-3 rounded border border-slate-700">
                     <div className="flex gap-3 mb-2">
                       <div className="flex-1"><label className="text-[10px] text-slate-500 uppercase font-bold">Máx Usos</label><input type="number" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm text-center" value={formData.maxUses} onChange={e => setFormData({...formData, maxUses: parseInt(e.target.value) || 1})} /></div>
                       <div className="flex-1"><label className="text-[10px] text-slate-500 uppercase font-bold">Recuperação</label><select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white text-sm" value={formData.recovery} onChange={e => setFormData({...formData, recovery: e.target.value as any})}><option value="short" className={optionClass}>Curto</option><option value="long" className={optionClass}>Longo</option><option value="none" className={optionClass}>Manual</option></select></div>
@@ -297,15 +331,41 @@ export function FeaturesTab({ character, onUpdate, isEditMode }: FeaturesTabProp
                  </div>
                )}
 
-               {/* EFEITOS */}
+               {/* GERADOR DE EFEITOS */}
                <div className="bg-slate-950 p-3 rounded border border-slate-700">
                  <label className="text-[10px] uppercase font-bold text-blue-400 mb-2 block flex items-center gap-1"><Sparkles size={12} /> Efeitos / Bônus</label>
-                 <div className="flex flex-wrap gap-2 mb-3">{formData.effects?.map((eff, i) => (<div key={i} className="bg-slate-800 px-2 py-1 rounded text-xs flex items-center gap-2 border border-slate-700"><span className="text-slate-300">{EFFECT_TYPES.find(t => t.value === eff.type)?.label} {eff.target && ` (${eff.target})`}: <strong className="text-white ml-1">{eff.value >= 0 ? `+${eff.value}` : eff.value}</strong></span><button onClick={() => handleRemoveEffect(i)} className="text-red-400 hover:text-red-200"><X size={12}/></button></div>))}</div>
+                 
+                 {/* LISTA DE EFEITOS ADICIONADOS */}
+                 <div className="flex flex-wrap gap-2 mb-3">
+                    {formData.effects?.map((eff, i) => (
+                        <div key={i} className="bg-slate-800 px-2 py-1 rounded text-xs flex items-center gap-2 border border-slate-700">
+                            <span className="text-slate-300">
+                                {EFFECT_TYPES.find(t => t.value === eff.type)?.label.split(' ')[0]} 
+                                {eff.target && ` (${eff.target})`}: 
+                                <strong className="text-white ml-1">{eff.value >= 0 ? `+${eff.value}` : eff.value}</strong>
+                            </span>
+                            <button onClick={() => handleRemoveEffect(i)} className="text-red-400 hover:text-red-200"><X size={12}/></button>
+                        </div>
+                    ))}
+                 </div>
+
+                 {/* INPUTS DE CRIAÇÃO */}
                  <div className="grid grid-cols-12 gap-2 items-end">
-                   <div className="col-span-5"><select className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white" value={newEffectType} onChange={e => setNewEffectType(e.target.value as any)}>{EFFECT_TYPES.map(t => <option key={t.value} value={t.value} className={optionClass}>{t.label}</option>)}</select></div>
-                   <div className="col-span-4">{newEffectType === 'ac' ? (<input disabled className="w-full bg-slate-900/50 text-xs border border-slate-800 rounded p-1.5 text-slate-500 cursor-not-allowed" value="Armadura" />) : (<select className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white" value={newEffectTarget} onChange={e => setNewEffectTarget(e.target.value)}><option value="" className={optionClass}>Alvo...</option>{newEffectType === 'speed' && MOVEMENT_LIST.map(m => <option key={m} value={m} className={optionClass}>{m}</option>)} {(newEffectType !== 'speed') && <option value="Geral" className={optionClass}>Geral</option>}</select>)}</div>
-                   <div className="col-span-2"><input type="number" className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white text-center" placeholder="+0" value={newEffectValue} onChange={e => setNewEffectValue(parseInt(e.target.value) || 0)} /></div>
-                   <div className="col-span-1"><button onClick={handleAddEffect} className="w-full bg-blue-900 hover:bg-blue-800 text-white p-1.5 rounded flex justify-center"><Plus size={14}/></button></div>
+                   <div className="col-span-5">
+                       <select className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white" value={newEffectType} onChange={e => setNewEffectType(e.target.value as any)}>
+                           {EFFECT_TYPES.map(t => <option key={t.value} value={t.value} className={optionClass}>{t.label}</option>)}
+                       </select>
+                   </div>
+                   <div className="col-span-4">
+                       {/* RENDERIZA O INPUT CERTO BASEADO NO TIPO */}
+                       {renderTargetInput()}
+                   </div>
+                   <div className="col-span-2">
+                       <input type="number" className="w-full bg-slate-900 text-xs border border-slate-700 rounded p-1.5 text-white text-center" placeholder="Val" value={newEffectValue} onChange={e => setNewEffectValue(parseInt(e.target.value) || 0)} />
+                   </div>
+                   <div className="col-span-1">
+                       <button onClick={handleAddEffect} className="w-full bg-blue-900 hover:bg-blue-800 text-white p-1.5 rounded flex justify-center"><Plus size={14}/></button>
+                   </div>
                  </div>
                </div>
 
